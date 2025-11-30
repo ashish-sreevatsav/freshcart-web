@@ -12,10 +12,15 @@ export interface Product {
   unit: string;
   image: string;
   isFeatured?: boolean;
+  rating?: number;
+  numReviews?: number;
+  stock?: number;
+  description?: string;
 }
 
 export interface CartItem extends Product {
   quantity: number;
+  cartItemId?: string; // Backend cart item ID for updates/deletes
 }
 
 export type ProductCategory = 

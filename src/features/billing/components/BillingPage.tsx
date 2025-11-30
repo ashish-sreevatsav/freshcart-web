@@ -1,31 +1,22 @@
 import { useState } from 'react';
 import { CreditCard, Plus, Trash2, Calendar } from 'lucide-react';
-import type { Order } from '@/types';
+import type { Order, PaymentMethodType } from '@/types';
+import { useUserProfile } from '@/features/profile';
 
 interface BillingPageProps {
   orders: Order[];
 }
 
-interface PaymentMethod {
-  id: string;
-  type: 'visa' | 'mastercard' | 'amex';
-  last4: string;
-  expiryDate: string;
-  isDefault: boolean;
-}
-
 export function BillingPage({ orders }: BillingPageProps) {
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([
-    { id: '1', type: 'visa', last4: '4242', expiryDate: '12/25', isDefault: true },
-    { id: '2', type: 'mastercard', last4: '8888', expiryDate: '09/26', isDefault: false },
-  ]);
-
+  const { paymentMethods, addPaymentMethod, deletePaymentMethod, setDefaultPaymentMethod } = useUserProfile();
   const [showAddCard, setShowAddCard] = useState(false);
+  const [saveCard, setSaveCard] = useState(true);
   const [newCard, setNewCard] = useState({
     cardNumber: '',
     expiryDate: '',
     cvv: '',
-    name: '',
+    cardholderName: '',
+    type: 'visa' as PaymentMethodType,
   });
 
   const totalSpent = orders.reduce((sum, order) => sum + order.total, 0);
@@ -42,31 +33,24 @@ export function BillingPage({ orders }: BillingPageProps) {
   };
 
   const handleAddCard = () => {
-    // Mock adding card
+    if (!saveCard) {
+      setShowAddCard(false);
+      setNewCard({ cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', type: 'visa' });
+      setSaveCard(true);
+      return;
+    }
+    
     const last4 = newCard.cardNumber.slice(-4);
-    const newMethod: PaymentMethod = {
-      id: String(paymentMethods.length + 1),
-      type: 'visa',
+    addPaymentMethod({
+      type: newCard.type,
+      cardholderName: newCard.cardholderName,
       last4,
       expiryDate: newCard.expiryDate,
       isDefault: paymentMethods.length === 0,
-    };
-    setPaymentMethods([...paymentMethods, newMethod]);
+    });
     setShowAddCard(false);
-    setNewCard({ cardNumber: '', expiryDate: '', cvv: '', name: '' });
-  };
-
-  const handleDeleteCard = (id: string) => {
-    setPaymentMethods(paymentMethods.filter(method => method.id !== id));
-  };
-
-  const handleSetDefault = (id: string) => {
-    setPaymentMethods(
-      paymentMethods.map(method => ({
-        ...method,
-        isDefault: method.id === id,
-      }))
-    );
+    setNewCard({ cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', type: 'visa' });
+    setSaveCard(true);
   };
 
   return (
@@ -116,8 +100,8 @@ export function BillingPage({ orders }: BillingPageProps) {
                 <label className="block text-sm text-gray-700 mb-2">Cardholder Name</label>
                 <input
                   type="text"
-                  value={newCard.name}
-                  onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
+                  value={newCard.cardholderName}
+                  onChange={(e) => setNewCard({ ...newCard, cardholderName: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600"
                   placeholder="John Doe"
                 />
@@ -157,19 +141,34 @@ export function BillingPage({ orders }: BillingPageProps) {
                   />
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="saveCard"
+                  checked={saveCard}
+                  onChange={(e) => setSaveCard(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="saveCard" className="text-sm text-gray-700">
+                  Save this card for future use
+                </label>
+              </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowAddCard(false)}
+                  onClick={() => {
+                    setShowAddCard(false);
+                    setSaveCard(true);
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddCard}
-                  disabled={!newCard.cardNumber || !newCard.expiryDate || !newCard.cvv || !newCard.name}
+                  disabled={!newCard.cardNumber || !newCard.expiryDate || !newCard.cvv || !newCard.cardholderName}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
                 >
-                  Add Card
+                  {saveCard ? 'Add Card' : 'Continue'}
                 </button>
               </div>
             </div>
@@ -214,14 +213,14 @@ export function BillingPage({ orders }: BillingPageProps) {
                     <div className="flex gap-2">
                       {!method.isDefault && (
                         <button
-                          onClick={() => handleSetDefault(method.id)}
+                          onClick={() => setDefaultPaymentMethod(method.id)}
                           className="px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                         >
                           Set Default
                         </button>
                       )}
                       <button
-                        onClick={() => handleDeleteCard(method.id)}
+                        onClick={() => deletePaymentMethod(method.id)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />

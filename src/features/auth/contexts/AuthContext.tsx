@@ -1,11 +1,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { authService, type AuthResponse, type UserProfile } from '@/core/services';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  login: (username: string) => void;
+  user: UserProfile | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone: string) => Promise<void>;
   logout: () => void;
   autoLogoutTime: number;
   setAutoLogoutTime: (minutes: number) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +24,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [autoLogoutTime, setAutoLogoutTimeState] = useState(() => {
     const saved = localStorage.getItem(LOGOUT_TIME_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_LOGOUT_TIME;
@@ -28,16 +33,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const checkSession = () => {
+    const checkSession = async () => {
+      const token = localStorage.getItem('auth_token');
       const session = localStorage.getItem(SESSION_KEY);
-      if (session) {
+      
+      if (token && session) {
         try {
-          const { username, loginTime } = JSON.parse(session);
+          const { loginTime } = JSON.parse(session);
           const now = Date.now();
           const elapsed = (now - loginTime) / 1000 / 60; // minutes
 
           if (elapsed < autoLogoutTime) {
+            // Verify token is still valid by fetching user profile
+            const userProfile = await authService.getMe();
+            setUser(userProfile);
             setIsAuthenticated(true);
+            
             // Start auto-logout timer for remaining time
             const remainingTime = (autoLogoutTime - elapsed) * 60 * 1000;
             startLogoutTimer(remainingTime);
@@ -46,14 +57,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
             logout();
           }
         } catch (error) {
-          console.error('Error parsing session:', error);
+          console.error('Error validating session:', error);
           logout();
         }
       }
     };
 
     checkSession();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const startLogoutTimer = (timeInMs?: number) => {
     // Clear existing timer
@@ -71,24 +83,81 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLogoutTimer(timer);
   };
 
-  const login = (username: string) => {
-    const session = {
-      username,
-      loginTime: Date.now(),
-    };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    setIsAuthenticated(true);
-    
-    // Start auto-logout timer
-    startLogoutTimer();
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await authService.login({ email, password });
+      
+      const session = {
+        userId: response.user.id,
+        loginTime: Date.now(),
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      
+      setUser({
+        _id: response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role,
+        phone: response.user.phone,
+        addresses: [],
+        createdAt: new Date().toISOString(),
+      });
+      setIsAuthenticated(true);
+      
+      // Start auto-logout timer
+      startLogoutTimer();
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw new Error(error.message || 'Login failed');
+    }
+  };
+
+  const register = async (name: string, email: string, password: string, phone: string) => {
+    try {
+      const response = await authService.register({ name, email, password, phone });
+      
+      const session = {
+        userId: response.user.id,
+        loginTime: Date.now(),
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      
+      setUser({
+        _id: response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role,
+        phone: response.user.phone,
+        addresses: [],
+        createdAt: new Date().toISOString(),
+      });
+      setIsAuthenticated(true);
+      
+      // Start auto-logout timer
+      startLogoutTimer();
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      throw new Error(error.message || 'Registration failed');
+    }
   };
 
   const logout = () => {
+    authService.logout();
     localStorage.removeItem(SESSION_KEY);
     setIsAuthenticated(false);
+    setUser(null);
     if (logoutTimer) {
       clearTimeout(logoutTimer);
       setLogoutTimer(null);
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const userProfile = await authService.getMe();
+      setUser(userProfile);
+    } catch (error) {
+      console.error('Error refreshing user:', error);
     }
   };
 
@@ -100,9 +169,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (isAuthenticated) {
       const session = localStorage.getItem(SESSION_KEY);
       if (session) {
-        const { username } = JSON.parse(session);
+        const { userId } = JSON.parse(session);
         // Update login time to now
-        login(username);
+        const newSession = {
+          userId,
+          loginTime: Date.now(),
+        };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
+        startLogoutTimer();
       }
     }
   };
@@ -111,10 +185,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        user,
         login,
+        register,
         logout,
         autoLogoutTime,
         setAutoLogoutTime,
+        refreshUser,
       }}
     >
       {children}

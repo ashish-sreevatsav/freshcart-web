@@ -14,7 +14,8 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [onComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount - onComplete is stable
 
   return (
     <div

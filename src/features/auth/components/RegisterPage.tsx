@@ -8,9 +8,9 @@ interface RegisterPageProps {
 }
 
 export function RegisterPage({ onRegister, onBackToLogin }: RegisterPageProps) {
-  const { login } = useAuth();
+  const { register } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    name: '',
     email: '',
     phone: '',
     password: '',
@@ -25,7 +25,7 @@ export function RegisterPage({ onRegister, onBackToLogin }: RegisterPageProps) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -42,18 +42,13 @@ export function RegisterPage({ onRegister, onBackToLogin }: RegisterPageProps) {
 
     setIsLoading(true);
 
-    // Simulate registration delay
-    setTimeout(() => {
-      // Store credentials in localStorage for demo
-      localStorage.setItem('user', JSON.stringify({
-        username: formData.username,
-        email: formData.email,
-        phone: formData.phone,
-        password: formData.password
-      }));
-      login(formData.username);
+    try {
+      await register(formData.name, formData.email, formData.password, formData.phone);
       onRegister();
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -71,19 +66,19 @@ export function RegisterPage({ onRegister, onBackToLogin }: RegisterPageProps) {
         {/* Registration Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Username Field */}
+            {/* Name Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+                Full Name
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  name="username"
-                  value={formData.username}
+                  name="name"
+                  value={formData.name}
                   onChange={handleInputChange}
-                  placeholder="Choose a username"
+                  placeholder="Enter your full name"
                   required
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                 />

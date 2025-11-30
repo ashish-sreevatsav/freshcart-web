@@ -4,7 +4,7 @@
 
 import { CartItem } from './product.types';
 
-export type OrderStatus = 'delivered' | 'in-transit' | 'processing';
+export type OrderStatus = 'delivered' | 'in-transit' | 'processing' | 'cancelled';
 export type QueryStatus = 'pending' | 'resolved';
 export type QueryCategory = 'complaint' | 'refund' | 'product-issue' | 'delivery-issue' | 'other';
 
@@ -27,6 +27,8 @@ export interface Order {
   deliveryDate: string;
   deliveryTime: string;
   address: string;
+  paymentMethod?: string;
+  trackingNumber?: string;
   queries?: Query[];
 }
 
@@ -35,5 +37,9 @@ export interface BookingDetails {
   deliveryTime: string;
   address: string;
   city: string;
+  state?: string;
   zipCode: string;
+  phone?: string;
+  paymentMethod?: 'COD' | 'Card' | 'UPI' | 'NetBanking' | 'Wallet';
+  specialInstructions?: string;
 }
