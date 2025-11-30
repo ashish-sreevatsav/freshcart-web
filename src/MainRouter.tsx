@@ -17,7 +17,7 @@ interface MainRouterProps {
   products: Product[];
   cart: {
     cartItems: CartItem[];
-    addToCart: (product: Product) => void;
+    addToCart: (product: Product) => Promise<void>;
     updateQuantity: (id: string, quantity: number) => void;
     removeFromCart: (id: string) => void;
     getTotalPrice: () => number;

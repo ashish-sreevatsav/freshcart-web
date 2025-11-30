@@ -1,109 +1,124 @@
 /**
- * Custom hook for managing orders
+ * Custom hook for managing orders with backend integration
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Order, CartItem, BookingDetails } from '@/types';
+import { ordersService, type OrderResponse } from '@/core/services';
 import { generateId } from '@/shared/utils';
 
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'ORD-001',
-    date: '2025-11-25',
-    items: [
-      {
-        id: '1',
-        name: 'Fresh Bananas',
-        category: 'Fruits',
-        price: 1.99,
-        originalPrice: 2.99,
-        discount: 33,
-        unit: 'per lb',
-        image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400',
-        quantity: 2,
-        isFeatured: true,
-      },
-      {
-        id: '5',
-        name: 'Whole Milk',
-        category: 'Dairy',
-        price: 2.99,
-        originalPrice: 4.29,
-        discount: 30,
-        unit: 'per gallon',
-        image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400',
-        quantity: 1,
-      },
-    ],
-    total: 10.27,
-    status: 'delivered',
-    deliveryDate: '2025-11-26',
-    deliveryTime: '10:00 AM - 12:00 PM',
-    address: '123 Main St, New York, NY 10001',
-    queries: [],
-  },
-  {
-    id: 'ORD-002',
-    date: '2025-11-27',
-    items: [
-      {
-        id: '3',
-        name: 'Fresh Tomatoes',
-        category: 'Vegetables',
-        price: 1.49,
-        originalPrice: 2.49,
-        discount: 40,
-        unit: 'per lb',
-        image: 'https://images.unsplash.com/photo-1546470427-227b50c00b5e?w=400',
-        quantity: 3,
-        isFeatured: true,
-      },
-      {
-        id: '7',
-        name: 'Whole Wheat Bread',
-        category: 'Bakery',
-        price: 2.49,
-        originalPrice: 3.49,
-        discount: 29,
-        unit: 'per loaf',
-        image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400',
-        quantity: 2,
-      },
-    ],
-    total: 14.45,
-    status: 'in-transit',
-    deliveryDate: '2025-11-28',
-    deliveryTime: '2:00 PM - 4:00 PM',
-    address: '123 Main St, New York, NY 10001',
-    queries: [],
-  },
-];
-
 export const useOrders = () => {
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Convert backend order to frontend Order type
+  const convertOrder = (backendOrder: OrderResponse): Order => {
+    const statusMap: Record<string, Order['status']> = {
+      'Pending': 'processing',
+      'Processing': 'processing',
+      'Shipped': 'in-transit',
+      'Delivered': 'delivered',
+      'Cancelled': 'cancelled',
+    };
+
+    return {
+      id: backendOrder._id,
+      date: new Date(backendOrder.createdAt).toISOString().split('T')[0],
+      items: backendOrder.orderItems.map(item => ({
+        id: item.product,
+        name: item.name,
+        category: 'General', // Backend doesn't return category in order items
+        price: item.price,
+        unit: 'each',
+        image: item.image,
+        quantity: item.quantity,
+      })) as CartItem[],
+      total: backendOrder.totalPrice,
+      status: statusMap[backendOrder.orderStatus] || 'processing',
+      deliveryDate: backendOrder.estimatedDeliveryDate || backendOrder.deliveredAt 
+        ? new Date(backendOrder.estimatedDeliveryDate || backendOrder.deliveredAt!).toISOString().split('T')[0]
+        : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      deliveryTime: '10:00 AM - 12:00 PM', // Default, backend doesn't have time slots
+      address: `${backendOrder.shippingAddress.street}, ${backendOrder.shippingAddress.city}, ${backendOrder.shippingAddress.state} ${backendOrder.shippingAddress.postalCode}`,
+      paymentMethod: backendOrder.paymentMethod,
+      trackingNumber: backendOrder.trackingNumber,
+      queries: [], // Backend doesn't have queries yet
+    };
+  };
+
+  // Fetch orders on mount - only if user is authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      fetchOrders();
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await ordersService.getMyOrders();
+      const convertedOrders = response.data.map(convertOrder);
+      setOrders(convertedOrders);
+    } catch (error: any) {
+      console.error('Error fetching orders:', error);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const createOrder = useCallback(
-    (items: CartItem[], bookingDetails: BookingDetails) => {
-      const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const newOrder: Order = {
-        id: generateId('ORD'),
-        date: new Date().toISOString().split('T')[0],
-        items,
-        total,
-        status: 'processing',
-        deliveryDate: bookingDetails.deliveryDate,
-        deliveryTime: bookingDetails.deliveryTime,
-        address: `${bookingDetails.address}, ${bookingDetails.city}, ${bookingDetails.zipCode}`,
-        queries: [],
-      };
-      setOrders((prev) => [newOrder, ...prev]);
-      return newOrder;
+    async (items: CartItem[], bookingDetails: BookingDetails) => {
+      try {
+        const itemsPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const taxPrice = itemsPrice * 0.1; // 10% tax
+        const shippingPrice = itemsPrice > 50 ? 0 : 5; // Free shipping over $50
+        const totalPrice = itemsPrice + taxPrice + shippingPrice;
+
+        const orderData = {
+          orderItems: items.map(item => ({
+            product: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.image,
+          })),
+          shippingAddress: {
+            street: bookingDetails.address,
+            city: bookingDetails.city,
+            state: bookingDetails.state || 'NY',
+            postalCode: bookingDetails.zipCode,
+            country: 'USA',
+            phone: bookingDetails.phone || '0000000000',
+          },
+          paymentMethod: (bookingDetails.paymentMethod || 'COD') as 'COD' | 'Card' | 'UPI' | 'NetBanking' | 'Wallet',
+          itemsPrice,
+          taxPrice,
+          shippingPrice,
+          discountPrice: 0,
+          totalPrice,
+          orderNotes: bookingDetails.specialInstructions,
+        };
+
+        const newOrder = await ordersService.createOrder(orderData);
+        const convertedOrder = convertOrder(newOrder);
+        setOrders((prev) => [convertedOrder, ...prev]);
+        return convertedOrder;
+      } catch (error: any) {
+        console.error('Error creating order:', error);
+        throw error;
+      }
     },
     []
   );
 
   const addQuery = useCallback(
     (orderId: string, subject: string, category: string, description: string) => {
+      // This would need a backend endpoint to store queries
+      // For now, store locally
       setOrders((prev) =>
         prev.map((order) => {
           if (order.id === orderId) {
@@ -127,9 +142,22 @@ export const useOrders = () => {
     []
   );
 
+  const cancelOrder = useCallback(async (orderId: string) => {
+    try {
+      await ordersService.cancelOrder(orderId);
+      await fetchOrders(); // Refresh orders
+    } catch (error: any) {
+      console.error('Error cancelling order:', error);
+      throw error;
+    }
+  }, []);
+
   return {
     orders,
+    loading,
     createOrder,
     addQuery,
+    cancelOrder,
+    refetch: fetchOrders,
   };
 };

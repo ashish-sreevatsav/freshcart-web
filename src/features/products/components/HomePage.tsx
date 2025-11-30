@@ -9,7 +9,7 @@ interface HomePageProps {
   products: Product[];
   searchQuery: string;
   cartItems: CartItem[];
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: Product) => Promise<void>;
   onUpdateQuantity: (id: string, quantity: number) => void;
 }
 

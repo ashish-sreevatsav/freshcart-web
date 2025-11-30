@@ -3,7 +3,7 @@ import type { Product, CartItem } from '@/types';
 
 interface ProductGridProps {
   products: Product[];
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: Product) => Promise<void>;
   cartItems: CartItem[];
   onUpdateQuantity: (id: string, quantity: number) => void;
 }

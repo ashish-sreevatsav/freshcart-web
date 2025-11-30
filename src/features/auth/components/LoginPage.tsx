@@ -8,38 +8,24 @@ interface LoginPageProps {
 
 export function LoginPage({ onRegister }: LoginPageProps) {
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    // Simulate login delay
-    setTimeout(() => {
-      // Check for admin credentials
-      if (username === 'admin' && password === 'admin') {
-        login(username);
-        return;
-      }
-
-      // Check for registered user
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        if (username === user.username && password === user.password) {
-          login(username);
-          return;
-        }
-      }
-
-      setError('Invalid username or password');
+    try {
+      await login(email, password);
+      // Login successful - AuthContext will handle navigation
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   return (
@@ -57,18 +43,18 @@ export function LoginPage({ onRegister }: LoginPageProps) {
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username Field */}
+            {/* Email Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+                Email
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter email"
                   required
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                 />

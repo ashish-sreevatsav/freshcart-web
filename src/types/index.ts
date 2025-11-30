@@ -6,3 +6,4 @@ export * from './product.types';
 export * from './order.types';
 export * from './auth.types';
 export * from './navigation.types';
+export * from './profile.types';

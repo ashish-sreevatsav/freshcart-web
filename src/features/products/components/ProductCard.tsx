@@ -4,12 +4,24 @@ import type { Product } from '@/types';
 
 interface ProductCardProps {
   product: Product;
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: Product) => Promise<void>;
   quantity: number;
   onUpdateQuantity: (id: string, quantity: number) => void;
 }
 
 export function ProductCard({ product, onAddToCart, quantity, onUpdateQuantity }: ProductCardProps) {
+  const handleAddToCart = async () => {
+    try {
+      console.log('Adding to cart:', { productId: product.id, productName: product.name });
+      await onAddToCart(product);
+      console.log('Successfully added to cart');
+    } catch (error: any) {
+      console.error('Failed to add to cart:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to add item to cart. Please try again.';
+      alert(errorMessage);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <div className="aspect-square overflow-hidden bg-gray-100 relative">
@@ -62,7 +74,7 @@ export function ProductCard({ product, onAddToCart, quantity, onUpdateQuantity }
           
           {quantity === 0 ? (
             <button
-              onClick={() => onAddToCart(product)}
+              onClick={handleAddToCart}
               className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition-colors flex-shrink-0"
             >
               <Plus className="w-5 h-5" />
